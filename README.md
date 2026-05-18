@@ -280,5 +280,5 @@ GUI-приложение «Book Tracker» для управления списк
 
 ## Ссылка на GitHub
 
-https://github.com/KanuOwuo/itogeproject.git
+https://github.com/KanuOwuo/project.git
 ## Файл называется README.md
