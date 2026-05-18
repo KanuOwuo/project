@@ -1,135 +1,130 @@
-import tkinter as tk from tkinter
-import ttk, messagebox
+import tkinter as tk
+from tkinter import ttk, messagebox
+import requests
 import json
 import os
 
-class BookTracker:
+class GitHubUserFinder:
     def __init__(self, root):
         self.root = root
-        self.root.title("Book Tracker")
-        self.books = []
-        self.load_data()
-        self.create_widgets()
+        self.root.title("GitHub User Finder")
+        self.root.geometry("800x600")
 
-    def create_widgets(self):
-        # Поля ввода
-        tk.Label(self.root, text="Название книги:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        self.title_entry = tk.Entry(self.root, width=40)
-        self.title_entry.grid(row=0, column=1, padx=5, pady=5)
+        # Загрузка избранного
+        self.load_favorites()
 
-        tk.Label(self.root, text="Автор:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        self.author_entry = tk.Entry(self.root, width=40)
-        self.author_entry.grid(row=1, column=1, padx=5, pady=5)
+        self.setup_ui()
 
-        tk.Label(self.root, text="Жанр:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
-        self.genre_entry = tk.Entry(self.root, width=40)
-        self.genre_entry.grid(row=2, column=1, padx=5, pady=5)
+    def setup_ui(self):
+        # Поле поиска
+        search_frame = ttk.Frame(self.root)
+        search_frame.pack(pady=10, padx=20, fill="x")
 
-        tk.Label(self.root, text="Количество страниц:").grid(row=3, column=0, sticky="w", padx=5, pady=5)
-        self.pages_entry = tk.Entry(self.root, width=40)
-        self.pages_entry.grid(row=3, column=1, padx=5, pady=5)
+        ttk.Label(search_frame, text="Поиск пользователя GitHub:").pack(side="left")
 
-        # Кнопка добавления
-        self.add_button = tk.Button(self.root, text="Добавить книгу", command=self.add_book)
-        self.add_button.grid(row=4, column=0, columnspan=2, pady=10)
+        self.search_entry = ttk.Entry(search_frame, width=40)
+        self.search_entry.pack(side="left", padx=5)
+        self.search_entry.bind("<Return>", lambda e: self.search_users())
 
-        # Таблица
-        self.tree = ttk.Treeview(self.root, columns=("Title", "Author", "Genre", "Pages"), show="headings")
-        self.tree.heading("Title", text="Название")
-        self.tree.heading("Author", text="Автор")
-        self.tree.heading("Genre", text="Жанр")
-        self.tree.heading("Pages", text="Страниц")
-        self.tree.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        search_btn = ttk.Button(search_frame, text="Поиск", command=self.search_users)
+        search_btn.pack(side="left", padx=5)
 
-        # Фильтры
-        tk.Label(self.root, text="Фильтр по жанру:").grid(row=6, column=0, sticky="w", padx=5, pady=5)
-        self.genre_filter = tk.Entry(self.root, width=20)
-        self.genre_filter.grid(row=6, column=1, sticky="w", padx=5, pady=5)
+        # Результаты поиска
+        results_frame = ttk.LabelFrame(self.root, text="Результаты поиска")
+        results_frame.pack(pady=10, padx=20, fill="both", expand=True)
 
-        tk.Label(self.root, text="Фильтр страниц (>):").grid(row=7, column=0, sticky="w", padx=5, pady=5)
-        self.pages_filter = tk.Entry(self.root, width=20)
-        self.pages_filter.grid(row=7, column=1, sticky="w", padx=5, pady=5)
+        self.results_listbox = tk.Listbox(results_frame, height=15)
+        self.results_listbox.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self.filter_button = tk.Button(self.root, text="Применить фильтры", command=self.apply_filters)
-        self.filter_button.grid(row=8, column=0, columnspan=2, pady=5)
+        add_favorite_btn = ttk.Button(results_frame, text="⭐ Добавить в избранное",
+                                  command=self.add_to_favorites)
+        add_favorite_btn.pack(pady=5)
 
-        self.clear_filter_button = tk.Button(self.root, text="Сбросить фильтры", command=self.load_data)
-        self.clear_filter_button.grid(row=9, column=0, columnspan=2, pady=5)
+        # Избранное
+        favorites_frame = ttk.LabelFrame(self.root, text="Избранное")
+        favorites_frame.pack(pady=10, padx=20, fill="both", expand=True)
 
-        # Кнопки сохранения/загрузки
-        self.save_button = tk.Button(self.root, text="Сохранить в JSON", command=self.save_data)
-        self.save_button.grid(row=10, column=0, pady=5)
+        self.favorites_listbox = tk.Listbox(favorites_frame, height=8)
+        self.favorites_listbox.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self.load_button = tk.Button(self.root, text="Загрузить из JSON", command=self.load_data)
-        self.load_button.grid(row=10, column=1, pady=5)
-def add_book(self):
-    title = self.title_entry.get().strip()
-    author = self.author_entry.get().strip()
-    genre = self.genre_entry.get().strip()
-    pages_text = self.pages_entry.get().strip()
+        remove_favorite_btn = ttk.Button(favorites_frame, text="🗑️ Удалить из избранного",
+                               command=self.remove_from_favorites)
+        remove_favorite_btn.pack(pady=5)
 
-    # Проверка валидации
-    if not title or not author or not genre:
-        messagebox.showerror("Ошибка", "Все поля, кроме количества страниц, обязательны!")
-        return
-
-    try:
-        pages = int(pages_text) if pages_text else 0
-        if pages < 0:
-            messagebox.showerror("Ошибка", "Количество страниц не может быть отрицательным!")
+    def search_users(self):
+        query = self.search_entry.get().strip()
+        if not query:
+            messagebox.showerror("Ошибка", "Поле поиска не должно быть пустым!")
             return
-    except ValueError:
-        messagebox.showerror("Ошибка", "Количество страниц должно быть числом!")
-        return
 
-    # Добавляем книгу
-    book = {"title": title, "author": author, "genre": genre, "pages": pages}
-    self.books.append(book)
-
-    # Очищаем поля
-    self.title_entry.delete(0, tk.END)
-    self.author_entry.delete(0, tk.END)
-    self.genre_entry.delete(0, tk.END)
-    self.pages_entry.delete(0, tk.END)
-
-    self.update_table()
-
-def apply_filters(self):
-    filtered_books = self.books
-
-    genre_filter = self.genre_filter.get().strip().lower()
-    if genre_filter:
-        filtered_books = [b for b in filtered_books if genre_filter in b["genre"].lower()]
-
-    pages_filter_text = self.pages_filter.get().strip()
-    if pages_filter_text:
         try:
-            min_pages = int(pages_filter_text)
-            filtered_books = [b for b in filtered_books if b["pages"] >= min_pages
-        except ValueError:
-            messagebox.showerror("Ошибка", "Некорректное значение для фильтра страниц!")
+            response = requests.get(f"https://api.github.com/search/users?q={query}")
+            response.raise_for_status()
+            data = response.json()
+
+            self.results_listbox.delete(0, tk.END)
+            for user in data["items"][:10]:  # Ограничиваем 10 результатами
+                self.results_listbox.insert(tk.END, f"{user['login']} (ID: {user['id']})")
+
+        except requests.exceptions.RequestException as e:
+            messagebox.showerror("Ошибка", f"Ошибка при поиске: {e}")
+
+    def load_favorites(self):
+        if os.path.exists("favorites.json"):
+            with open("favorites.json", "r", encoding="utf-8") as f:
+                self.favorites = json.load(f)
+        else:
+            self.favorites = []
+        self.update_favorites_display()
+
+    def save_favorites(self):
+        with open("favorites.json", "w", encoding="utf-8") as f:
+            json.dump(self.favorites, f, ensure_ascii=False, indent=2)
+
+    def update_favorites_display(self):
+        self.favorites_listbox.delete(0, tk.END)
+        for user in self.favorites:
+            self.favorites_listbox.insert(tk.END, user["login"])
+
+    def add_to_favorites(self):
+        selection = self.results_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Предупреждение", "Выберите пользователя из результатов поиска!")
             return
 
-    self.update_table(filtered_books)
+        selected_text = self.results_listbox.get(selection[0])
+        login = selected_text.split(" (ID:")[0]
 
-def update_table(self, books=None):
-    for item in self.tree.get_children():
-        self.tree.delete(item)
+        if any(user["login"] == login for user in self.favorites):
+            messagebox.showinfo("Информация", "Этот пользователь уже в избранном!")
+            return
 
-    target_books = books if books is not None else self.books
-    for book in target_books:
-        self.tree.insert("", "end", values=(book["title"], book["author"], book["genre"], book["pages"]))
- def save_data(self):
-    with open("books.json", "w", encoding="utf-8") as f:
-        json.dump(self.books, f, ensure_ascii=False, indent=4)
-    messagebox.showinfo("Успех", "Данные сохранены в books.json")
+        # Получаем полную информацию о пользователе
+        try:
+            response = requests.get(f"https://api.github.com/users/{login}")
+            response.raise_for_status()
+            user_data = response.json()
+            self.favorites.append(user_data)
+            self.save_favorites()
+            self.update_favorites_display()
+            messagebox.showinfo("Успех", f"{login} добавлен в избранное!")
+        except requests.exceptions.RequestException as e:
+            messagebox.showerror("Ошибка", f"Не удалось получить данные пользователя: {e}")
 
-def load_data(self):
-    if os.path.exists("books.json"):
-        with open("books.json", "r", encoding="utf-8") as f:
-            self.books = json.load(f)
-    else:
-        self.books = []
-    self.update_table()
+    def remove_from_favorites(self):
+        selection = self.favorites_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Предупреждение", "Выберите пользователя из избранного!")
+            return
+
+        selected_login = self.favorites_listbox.get(selection[0])
+        self.favorites = [user for user in self.favorites if user["login"] != selected_login]
+        self.save_favorites()
+        self.update_favorites_display()
+        messagebox.showinfo("Успех", f"{selected_login} удалён из избранного!")
+
 if __name__ == "__main__":
-    root = tk.Tk()   
+    root = tk.Tk()
+    app = GitHubUserFinder(root)
+    root.mainloop()
+
